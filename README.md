@@ -59,7 +59,7 @@ This application empowers seismologists and researchers to visualize seismic dat
 1. **Clone or Download Repository**:
    ```bash
    cd /path/to/your/workspace
-   git clone <repository-url>  # Or unzip the downloaded project
+   git clone https://github.com/prabin7777/Earthquake_timeseries.git  # Or unzip the downloaded project
    cd earthquake-visualization-app
    ```
 
