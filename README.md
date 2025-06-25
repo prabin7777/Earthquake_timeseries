@@ -1,5 +1,5 @@
 
-```markdown
+
 # Earthquake Early Warning System Data Visualization App
 
 **Version 0.1, June 2025**  
@@ -20,7 +20,7 @@ This application empowers seismologists and researchers to visualize seismic dat
 
 ## Project Structure
 
-```
+
 .
 ├── assets/                   # Input .mseed files (e.g., assets/Gorkha_earthquake_7.2/)
 ├── backend_serve/
@@ -37,12 +37,12 @@ This application empowers seismologists and researchers to visualize seismic dat
 │   └── main.py                   # Main analysis script
 ├── index.html                # React frontend
 └── config.json               # Configuration for seismic events
-```
+
 
 ## Prerequisites
 
-- **Python 3.8+** and **pip**
-- **Web Browser** (e.g., Chrome, Firefox) for web interface
+- Python 3.8+ and pip
+- Web Browser (e.g., Chrome, Firefox) for web interface
 - **macOS System Dependencies** (for Cartopy):
   ```bash
   brew install proj geos
