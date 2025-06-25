@@ -20,6 +20,7 @@ This application empowers seismologists and researchers to visualize seismic dat
 
 ## Project Structure
 
+ ```bash
 
 .
 ├── assets/                   # Input .mseed files (e.g., assets/Gorkha_earthquake_7.2/)
@@ -38,7 +39,7 @@ This application empowers seismologists and researchers to visualize seismic dat
 ├── index.html                # React frontend
 └── config.json               # Configuration for seismic events
 
-
+  ```
 ## Prerequisites
 
 - Python 3.8+ and pip
