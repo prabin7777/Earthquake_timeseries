@@ -1,0 +1,18 @@
+[
+    {
+        "earthquake_name": "Lamjung_Earthquake",
+        "input_folder": "assets/Lamjung_Earthquake_5.3",
+        "output_folder": "Output/Lamjung_Earthquake_5.3",
+        "latitude": 28.2292,
+        "longitude": 84.3985,
+        "magnitude": 5.3
+    },
+    {
+        "earthquake_name": "Gorkha_Earthquake",
+        "input_folder": "assets/Gorkha_earthquake_7.2",
+        "output_folder": "Output/Gorkha_earthquake_7.2",
+        "latitude": 28.147,
+        "longitude": 84.708,
+        "magnitude": 7.8
+    }
+]
