@@ -10,67 +10,26 @@
   <title>Earthquake Early Warning System Data Visualization - NAST</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-    .progress-bar {
-      transition: width 0.3s ease-in-out;
-    }
-    /* Custom Modal Styles */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.6);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    .modal-content {
-      background: white;
-      padding: 1.5rem;
-      border-radius: 0.75rem; /* rounded-lg */
-      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* shadow-lg */
-      max-width: 90%;
-      width: 400px;
-      text-align: center;
-    }
-    .modal-button {
-      background-color: #3B82F6; /* blue-500 */
-      color: white;
-      font-weight: bold;
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem; /* rounded */
-      transition: background-color 0.2s;
-    }
-    .modal-button:hover {
-      background-color: #2563EB; /* blue-700 */
-    }
+    body { font-family: 'Inter', sans-serif; }
+    .progress-bar { transition: width 0.3s ease-in-out; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: white; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); max-width: 90%; width: 400px; text-align: center; }
+    .modal-button { background-color: #3B82F6; color: white; font-weight: bold; padding: 0.5rem 1rem; border-radius: 0.375rem; transition: background-color 0.2s; }
+    .modal-button:hover { background-color: #2563EB; }
   </style>
 </head>
 <body class="bg-gray-100 font-sans p-4 sm:p-6 lg:p-8">
   <div id="root" class="container mx-auto"></div>
 
   <script type="text/babel">
-    // Custom Modal Component for alerts
-    const CustomAlertModal = ({ message, onClose }) => {
-      return (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <p className="text-gray-800 text-lg mb-4">{message}</p>
-            <button
-              onClick={onClose}
-              className="modal-button"
-            >
-              OK
-            </button>
-          </div>
+    const CustomAlertModal = ({ message, onClose }) => (
+      <div className="modal-overlay">
+        <div className="modal-content">
+          <p className="text-gray-800 text-lg mb-4">{message}</p>
+          <button onClick={onClose} className="modal-button">OK</button>
         </div>
-      );
-    };
+      </div>
+    );
 
     const VisualizationUI = () => {
       const [folderFiles, setFolderFiles] = React.useState([]);
@@ -78,344 +37,150 @@
       const [earthquakeName, setEarthquakeName] = React.useState("Lamjung_Earthquake");
       const [latitude, setLatitude] = React.useState(28.2292);
       const [longitude, setLongitude] = React.useState(84.3985);
-      const [magnitude, setMagnitude] = React.useState(5.3); // New state for magnitude
+      const [magnitude, setMagnitude] = React.useState(5.3);
+      const [eventTime, setEventTime] = React.useState("2025-06-29T18:14:00"); // Default to current UTC (11:29 PM +0545) with seconds
+      const [deltaTime, setDeltaTime] = React.useState(2); // Default delta time in minutes
+      const [downloadEventName, setDownloadEventName] = React.useState("");
+      const [downloadLatitude, setDownloadLatitude] = React.useState("");
+      const [downloadLongitude, setDownloadLongitude] = React.useState("");
       const [showModal, setShowModal] = React.useState(false);
       const [modalMessage, setModalMessage] = React.useState("");
-      const [isProcessing, setIsProcessing] = React.useState(false); // New state for processing status
+      const [isProcessing, setIsProcessing] = React.useState(false);
 
-      // Function to show custom alert modal
-      const showAlert = (message) => {
-        setModalMessage(message);
-        setShowModal(true);
-      };
-
-      // Function to close custom alert modal
-      const closeAlert = () => {
-        setShowModal(false);
-        setModalMessage("");
-      };
+      const showAlert = (message) => { setModalMessage(message); setShowModal(true); };
+      const closeAlert = () => { setShowModal(false); setModalMessage(""); };
 
       const handleFolderChange = (event) => {
-        // Prevent new uploads if processing is ongoing
-        if (isProcessing) {
-            showAlert("Analysis is currently in progress. Please wait until it completes.");
-            return;
-        }
-
+        if (isProcessing) { showAlert("Analysis in progress. Please wait."); return; }
         const files = Array.from(event.target.files).filter(f => f.name.endsWith(".mseed"));
-        
-        if (files.length === 0) {
-          showAlert("No .mseed files found in the selected folder. Please select a folder containing MiniSEED files.");
-          setFolderFiles([]);
-          setProgress(0);
-          return;
-        }
-
+        if (files.length === 0) { showAlert("No .mseed files found."); setFolderFiles([]); setProgress(0); return; }
         setFolderFiles(files);
         const formData = new FormData();
         files.forEach(file => formData.append("files", file));
-
-        setProgress(10);
-        setIsProcessing(true); // Set processing to true
-
-        // Send earthquake name and magnitude with upload request to ensure folder creation
-        const uploadUrl = `http://localhost:5000/upload?earthquake_name=${encodeURIComponent(earthquakeName)}&magnitude=${encodeURIComponent(magnitude)}`;
-
-        fetch(uploadUrl, {
-          method: "POST",
-          body: formData
-        })
-        .then(async res => {
-          if (!res.ok) {
-            let errorData;
-            try {
-              errorData = await res.json();
-            } catch (e) {
-              throw new Error(`Server error: ${res.status} ${res.statusText}`);
-            }
-            throw new Error(errorData.message || "Upload failed with status: " + res.status);
-          }
-          return res.json();
-        })
-        .then(data => {
-          if (data.success) {
-            console.log("Upload successful:", data);
-            showAlert(data.message || "Files uploaded successfully!");
-            simulateProgress();
-            runBackendAnalysis();
-          } else {
-            throw new Error(data.message || "Server indicated upload was not successful.");
-          }
-        })
-        .catch(err => {
-          console.error("Upload Error:", err);
-          showAlert("Upload failed: " + err.message);
-          setProgress(0);
-          setIsProcessing(false); // Reset processing status on failure
-        });
+        setProgress(10); setIsProcessing(true);
+        fetch(`http://localhost:5000/upload?earthquake_name=${encodeURIComponent(earthquakeName)}&magnitude=${encodeURIComponent(magnitude)}`, { method: "POST", body: formData })
+          .then(async res => { if (!res.ok) throw new Error((await res.json()).message || `Upload failed: ${res.status}`); return res.json(); })
+          .then(data => { if (data.success) { showAlert(data.message || "Files uploaded."); simulateProgress(); runBackendAnalysis(); } else throw new Error(data.message); })
+          .catch(err => { console.error("Upload Error:", err); showAlert("Upload failed: " + err.message); setProgress(0); setIsProcessing(false); });
       };
 
       const simulateProgress = () => {
         let value = 10;
-        const interval = setInterval(() => {
-          value += 10;
-          setProgress(value);
-          if (value >= 90) {
-            clearInterval(interval);
-          }
-        }, 300);
+        const interval = setInterval(() => { value += 10; setProgress(value); if (value >= 90) clearInterval(interval); }, 300);
       };
 
       const runBackendAnalysis = () => {
         setProgress(90);
         fetch("http://localhost:5000/run_analysis", {
           method: "POST",
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ earthquake_name: earthquakeName, latitude: parseFloat(latitude), longitude: parseFloat(longitude), magnitude: parseFloat(magnitude) })
+        })
+          .then(async res => { if (!res.ok) throw new Error((await res.json()).error || `Analysis failed: ${res.status}`); return res.json(); })
+          .then(data => { showAlert(data.message || "Analysis complete."); setProgress(100); setIsProcessing(false); })
+          .catch(err => { console.error("Analysis Error:", err); showAlert("Analysis failed: " + err.message); setProgress(0); setIsProcessing(false); });
+      };
+
+      const downloadRaspberryData = () => {
+        if (isProcessing) { showAlert("Analysis in progress. Please wait."); return; }
+        if (!downloadEventName || !downloadLatitude || !downloadLongitude) { showAlert("Please fill all fields."); return; }
+        setIsProcessing(true); setProgress(10);
+        fetch("http://localhost:5000/download_raspberry", {
+          method: "POST",
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            earthquake_name: earthquakeName,
-            latitude: parseFloat(latitude),
-            longitude: parseFloat(longitude),
-            magnitude: parseFloat(magnitude) // Pass magnitude to backend
+            event_name: downloadEventName,
+            event_time: eventTime,
+            delta_time: deltaTime,
+            latitude: parseFloat(downloadLatitude),
+            longitude: parseFloat(downloadLongitude)
           })
         })
-        .then(async res => {
-          if (!res.ok) {
-            let errorData;
-            try {
-              errorData = await res.json();
-            } catch (e) {
-              throw new Error(`Server error: ${res.status} ${res.statusText}`);
-            }
-            throw new Error(errorData.error || "Analysis failed with status: " + res.status);
-          }
-          return res.json();
-        })
-        .then(data => {
-          console.log("Analysis Done:", data);
-          showAlert(data.message || "Analysis script ran successfully!");
-          setProgress(100);
-          setIsProcessing(false); // Analysis completed, reset processing status
-        })
-        .catch(err => {
-          console.error("Analysis Error:", err);
-          showAlert("Analysis failed: " + err.message);
-          setProgress(0);
-          setIsProcessing(false); // Reset processing status on failure
-        });
+          .then(async res => { if (!res.ok) throw new Error((await res.json()).error || `Download failed: ${res.status}`); return res.json(); })
+          .then(data => { showAlert("Data downloaded successfully."); setProgress(100); setIsProcessing(false); })
+          .catch(err => { console.error("Download Error:", err); showAlert("Download failed: " + err.message); setProgress(0); setIsProcessing(false); });
       };
 
       const handleDownloadPlot = () => {
-        if (progress < 100) {
-            showAlert("Please complete the analysis first before downloading plots.");
-            return;
-        }
-        // Construct the filename based on the current earthquake name and magnitude
+        if (progress < 100) { showAlert("Complete analysis first."); return; }
         const subfolder = `${earthquakeName}_${magnitude}`;
         const plotFilename = `${earthquakeName}_velocity_um_per_s.pdf`;
         window.open(`http://localhost:5000/download/${subfolder}/${plotFilename}`, "_blank");
       };
 
       const handleDownloadMap = () => {
-        if (progress < 100) {
-            showAlert("Please complete the analysis first before downloading maps.");
-            return;
-        }
-        // Construct the filename based on the current earthquake name and magnitude
+        if (progress < 100) { showAlert("Complete analysis first."); return; }
         const subfolder = `${earthquakeName}_${magnitude}`;
         const mapFilename = `${earthquakeName}_stations_map.pdf`;
         window.open(`http://localhost:5000/download/${subfolder}/${mapFilename}`, "_blank");
       };
 
       const handleDeleteAll = () => {
-        if (isProcessing) {
-            showAlert("Analysis is currently in progress. Please wait until it completes.");
-            return;
-        }
-
-        // Confirmation before deleting
-        if (!window.confirm("Are you sure you want to delete all uploaded files and generated plots/data? This action cannot be undone.")) {
-            return;
-        }
-
-        fetch("http://localhost:5000/delete_all_data", {
-            method: "POST"
-        })
-        .then(async res => {
-            if (!res.ok) {
-                let errorData;
-                try {
-                    errorData = await res.json();
-                } catch (e) {
-                    throw new Error(`Server error: ${res.status} ${res.statusText}`);
-                }
-                throw new Error(errorData.error || "Deletion failed with status: " + res.status);
-            }
-            return res.json();
-        })
-        .then(data => {
-            console.log("Deletion successful:", data);
-            showAlert(data.message || "All files and plots deleted successfully!");
-            // Reset UI state after successful deletion
-            setFolderFiles([]);
-            setProgress(0);
-            setEarthquakeName("Lamjung_Earthquake"); // Reset to default
-            setLatitude(28.2292); // Reset to default
-            setLongitude(84.3985); // Reset to default
-            setMagnitude(5.3); // Reset to default
-        })
-        .catch(err => {
-            console.error("Deletion Error:", err);
-            showAlert("Failed to delete files: " + err.message);
-        });
+        if (isProcessing) { showAlert("Analysis in progress. Please wait."); return; }
+        if (!window.confirm("Delete all files and plots? This cannot be undone.")) return;
+        fetch("http://localhost:5000/delete_all_data", { method: "POST" })
+          .then(async res => { if (!res.ok) throw new Error((await res.json()).error || `Deletion failed: ${res.status}`); return res.json(); })
+          .then(data => { showAlert(data.message || "All deleted."); setFolderFiles([]); setProgress(0); setEarthquakeName("Lamjung_Earthquake"); setLatitude(28.2292); setLongitude(84.3985); setMagnitude(5.3); setEventTime("2025-06-29T18:14:00"); setDownloadEventName(""); setDownloadLatitude(""); setDownloadLongitude(""); })
+          .catch(err => { console.error("Deletion Error:", err); showAlert("Deletion failed: " + err.message); });
       };
 
       return (
         <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8 lg:p-10 max-w-4xl mx-auto my-8 border border-gray-200">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-800 mb-2 text-center leading-tight">
-            Earthquake Early Warning System
-          </h1>
-          <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 mb-6 text-center">
-            Data Visualization App - Nepal Academy of Science and Technology (NAST)
-          </h2>
-          <p className="text-gray-600 text-center mb-8">
-            Upload MiniSEED files to analyze seismic data, specify earthquake details, and generate
-            velocity plots and station maps for early warning insights.
-          </p>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-800 mb-2 text-center leading-tight">Earthquake Early Warning System</h1>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 mb-6 text-center">Data Visualization App - Nepal Academy of Science and Technology (NAST)</h2>
+          <p className="text-gray-600 text-center mb-8">Upload MiniSEED files or download from Raspberry Shake to analyze seismic data and generate plots/maps.</p>
 
-          {/* Earthquake Info Section - Moved to the top */}
+          {/* Earthquake Info Section */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 p-4 bg-green-50 rounded-lg shadow-md border border-green-200">
-            <div>
-              <label htmlFor="earthquake-name" className="block text-sm font-medium text-gray-700 mb-2">Earthquake Name</label>
-              <input
-                id="earthquake-name"
-                type="text"
-                value={earthquakeName}
-                onChange={(e) => setEarthquakeName(e.target.value)}
-                className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800"
-                placeholder="e.g., Lamjung_Earthquake"
-                disabled={isProcessing} // Disable input while processing
-              />
-            </div>
-            <div>
-              <label htmlFor="latitude" className="block text-sm font-medium text-gray-700 mb-2">Epicentre Latitude</label>
-              <input
-                id="latitude"
-                type="number"
-                step="0.0001"
-                value={latitude}
-                onChange={(e) => setLatitude(e.target.value)}
-                className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800"
-                placeholder="e.g., 28.2292"
-                disabled={isProcessing} // Disable input while processing
-              />
-            </div>
-            <div>
-              <label htmlFor="longitude" className="block text-sm font-medium text-gray-700 mb-2">Epicentre Longitude</label>
-              <input
-                id="longitude"
-                type="number"
-                step="0.0001"
-                value={longitude}
-                onChange={(e) => setLongitude(e.target.value)}
-                className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800"
-                placeholder="e.g., 84.3985"
-                disabled={isProcessing} // Disable input while processing
-              />
-            </div>
-            <div> {/* New input for Magnitude */}
-              <label htmlFor="magnitude" className="block text-sm font-medium text-gray-700 mb-2">Magnitude (Richter Scale)</label>
-              <input
-                id="magnitude"
-                type="number"
-                step="0.1"
-                value={magnitude}
-                onChange={(e) => setMagnitude(e.target.value)}
-                className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800"
-                placeholder="e.g., 5.3"
-                disabled={isProcessing} // Disable input while processing
-              />
-            </div>
+            <div><label htmlFor="earthquake-name" className="block text-sm font-medium text-gray-700 mb-2">Earthquake Name</label><input id="earthquake-name" type="text" value={earthquakeName} onChange={(e) => setEarthquakeName(e.target.value)} className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800" placeholder="e.g., Lamjung_Earthquake" disabled={isProcessing} /></div>
+            <div><label htmlFor="latitude" className="block text-sm font-medium text-gray-700 mb-2">Epicentre Latitude</label><input id="latitude" type="number" step="0.0001" value={latitude} onChange={(e) => setLatitude(e.target.value)} className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800" placeholder="e.g., 28.2292" disabled={isProcessing} /></div>
+            <div><label htmlFor="longitude" className="block text-sm font-medium text-gray-700 mb-2">Epicentre Longitude</label><input id="longitude" type="number" step="0.0001" value={longitude} onChange={(e) => setLongitude(e.target.value)} className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800" placeholder="e.g., 84.3985" disabled={isProcessing} /></div>
+            <div><label htmlFor="magnitude" className="block text-sm font-medium text-gray-700 mb-2">Magnitude</label><input id="magnitude" type="number" step="0.1" value={magnitude} onChange={(e) => setMagnitude(e.target.value)} className="w-full p-2 border border-green-300 rounded-md focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-gray-800" placeholder="e.g., 5.3" disabled={isProcessing} /></div>
           </div>
 
           {/* Folder Uploader Section */}
           <div className="mb-8 p-4 bg-blue-50 rounded-lg shadow-md border border-blue-200">
-            <label htmlFor="file-upload" className="block text-base font-semibold text-gray-700 mb-3 cursor-pointer">
-                Upload Folder with MiniSEED Files
-            </label>
-            <input
-              id="file-upload"
-              type="file"
-              webkitdirectory="true"
-              directory=""
-              multiple
-              onChange={handleFolderChange}
-              className="w-full text-gray-700 bg-white border border-blue-300 rounded-md py-2 px-3 leading-tight focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer transition duration-200 ease-in-out file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
-              disabled={isProcessing} // Disable input while processing
-            />
-            {folderFiles.length > 0 && (
-              <p className="mt-3 text-sm text-gray-600">
-                <span className="font-medium text-blue-700">{folderFiles.length}</span> .mseed files selected
-              </p>
-            )}
-            {isProcessing && (
-                <p className="mt-2 text-sm text-blue-600 font-medium">Processing in progress...</p>
-            )}
+            <label htmlFor="file-upload" className="block text-base font-semibold text-gray-700 mb-3 cursor-pointer">Upload Folder with MiniSEED Files</label>
+            <input id="file-upload" type="file" webkitdirectory="true" directory="" multiple onChange={handleFolderChange} className="w-full text-gray-700 bg-white border border-blue-300 rounded-md py-2 px-3 leading-tight focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer transition duration-200 ease-in-out file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600" disabled={isProcessing} />
+            {folderFiles.length > 0 && <p className="mt-3 text-sm text-gray-600"><span className="font-medium text-blue-700">{folderFiles.length}</span> .mseed files selected</p>}
+            {isProcessing && <p className="mt-2 text-sm text-blue-600 font-medium">Processing in progress...</p>}
+          </div>
+
+          {/* Raspberry Shake Download Section */}
+          <div className="mb-8 p-4 bg-yellow-50 rounded-lg shadow-md border border-yellow-200">
+            <label className="block text-base font-semibold text-gray-700 mb-3">Download from Raspberry Shake</label>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
+              <div><label htmlFor="download-event-name" className="block text-sm font-medium text-gray-700 mb-2">Event Name</label><input id="download-event-name" type="text" value={downloadEventName} onChange={(e) => setDownloadEventName(e.target.value)} className="w-full p-2 border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 text-gray-800" placeholder="e.g., GorkhaEvent" disabled={isProcessing} /></div>
+              <div><label htmlFor="download-event-time" className="block text-sm font-medium text-gray-700 mb-2">Event Time (UTC)</label><input id="download-event-time" type="datetime-local" step="1" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="w-full p-2 border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 text-gray-800" disabled={isProcessing} /></div>
+              <div><label htmlFor="delta-time" className="block text-sm font-medium text-gray-700 mb-2">Delta Time (minutes)</label><input id="delta-time" type="number" value={deltaTime} onChange={(e) => setDeltaTime(e.target.value)} className="w-full p-2 border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 text-gray-800" placeholder="e.g., 2" disabled={isProcessing} /></div>
+              <div><label htmlFor="download-latitude" className="block text-sm font-medium text-gray-700 mb-2">Latitude</label><input id="download-latitude" type="number" step="0.0001" value={downloadLatitude} onChange={(e) => setDownloadLatitude(e.target.value)} className="w-full p-2 border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 text-gray-800" placeholder="e.g., 28.2292" disabled={isProcessing} /></div>
+              <div><label htmlFor="download-longitude" className="block text-sm font-medium text-gray-700 mb-2">Longitude</label><input id="download-longitude" type="number" step="0.0001" value={downloadLongitude} onChange={(e) => setDownloadLongitude(e.target.value)} className="w-full p-2 border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 text-gray-800" placeholder="e.g., 84.3985" disabled={isProcessing} /></div>
+            </div>
+            <button onClick={downloadRaspberryData} className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessing}>Download</button>
           </div>
 
           {/* Processing Progress Section */}
           <div className="mb-8 p-4 bg-purple-50 rounded-lg shadow-md border border-purple-200">
             <label className="block text-base font-semibold text-gray-700 mb-3">Processing Progress</label>
             <div className="w-full bg-gray-200 rounded-full h-5 overflow-hidden">
-              <div
-                className="progress-bar bg-gradient-to-r from-purple-400 to-purple-600 h-full rounded-full flex items-center justify-center text-xs font-semibold text-white shadow-md"
-                style={{ width: `${progress}%` }}
-              >
-                {progress > 0 && `${progress}%`}
-              </div>
+              <div className="progress-bar bg-gradient-to-r from-purple-400 to-purple-600 h-full rounded-full flex items-center justify-center text-xs font-semibold text-white shadow-md" style={{ width: `${progress}%` }}>{progress > 0 && `${progress}%`}</div>
             </div>
             <p className="mt-3 text-sm text-gray-600 text-center">{progress}% Complete</p>
           </div>
 
           {/* Download and Delete Buttons Section */}
           <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 justify-center">
-            <button
-              onClick={handleDownloadPlot}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={progress < 100 || isProcessing}
-            >
-              Download Velocity Plot
-            </button>
-            <button
-              onClick={handleDownloadMap}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={progress < 100 || isProcessing}
-            >
-              Download Station Map
-            </button>
-            <button
-              onClick={handleDeleteAll}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isProcessing || (folderFiles.length === 0 && progress === 0)}
-            >
-              Delete All Data
-            </button>
+            <button onClick={handleDownloadPlot} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled={progress < 100 || isProcessing}>Download Velocity Plot</button>
+            <button onClick={handleDownloadMap} className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled={progress < 100 || isProcessing}>Download Station Map</button>
+            <button onClick={handleDeleteAll} className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isProcessing || (folderFiles.length === 0 && progress === 0)}>Delete All Data</button>
           </div>
 
-          {/* Render Custom Alert Modal */}
           {showModal && <CustomAlertModal message={modalMessage} onClose={closeAlert} />}
-
-          {/* Footer with Developer Info */}
-          <footer className="mt-12 text-center text-gray-500 text-sm">
-            <p>Developed by Damodar Pokhrel, Research Assistant, NAST</p>
-            <p>2025 Version 0.1</p>
-          </footer>
+          <footer className="mt-12 text-center text-gray-500 text-sm"><p>Developed by Damodar Pokhrel, Research Assistant, NAST</p><p>2025 Version 0.1</p></footer>
         </div>
       );
     };
 
-    // Render the React component into the root div
     ReactDOM.render(<VisualizationUI />, document.getElementById('root'));
   </script>
 </body>

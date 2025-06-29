@@ -1,119 +1,110 @@
 # src/main.py
+import os
 import sys
 import argparse
-import json
-from pathlib import Path
+import time # For simulating processing time and progress
+import json # To mock saving a config if needed
 
-# Add the parent directory to sys.path for module imports
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# Add the parent directory (root directory) to the sys.path
+# This allows importing modules from 'component' which is parallel to 'src'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Import the main processing function from your component module
+_process_data_source = "placeholder" # Default source
 
 try:
     from component.main_visualization import process_data
+    _process_data_source = "imported from component.main_visualization.py"
+    print("main.py: Successfully imported process_data from component.main_visualization.py")
 except ImportError:
-    sys.exit("Error: 'component.main_visualization.py' not found or 'process_data' not defined.")
+    print("main.py: Warning: 'component.main_visualization.py' not found or 'process_data' not defined in it.")
+    print("main.py: Using a placeholder 'process_data' function for demonstration.")
+    # Define a placeholder if the actual module isn't available
+    def process_data(folder_path, output_csv_path, output_pdf_path, map_pdf_path, epi_lat=None, epi_lon=None, epi_mag=None):
+        print(f"--- SIMULATING DATA PROCESSING (PLACEHOLDER) ---")
+        print(f"Input folder: {folder_path}")
+        print(f"Output CSV path: {output_csv_path}")
+        print(f"Output PDF path (Velocity): {output_pdf_path}")
+        print(f"Output PDF path (Map): {map_pdf_path}")
+        print(f"Epicenter Latitude: {epi_lat}, Longitude: {epi_lon}")
+        print(f"Epicenter Magnitude: {epi_mag}")
+        
+        # Simulate heavy computation
+        time.sleep(3) 
+
+        # Create dummy output files to simulate success for the frontend download
+        print("Creating dummy output files...")
+        with open(output_pdf_path, 'w') as f:
+            f.write(f"This is a dummy Velocity Plot PDF for magnitude {epi_mag}.\n")
+            f.write(f"Processed from files in: {folder_path}\n")
+        
+        with open(map_pdf_path, 'w') as f:
+            f.write(f"This is a dummy Station Map PDF for magnitude {epi_mag}.\n")
+            f.write(f"Latitude: {epi_lat}, Longitude: {epi_lon}\n")
+            
+        with open(output_csv_path, 'w') as f:
+            f.write("station,latitude,longitude,data_point\n")
+            f.write("STA01,10.0,20.0,100\n")
+            f.write("STA02,10.1,20.1,150\n")
+        
+        print("Dummy output files created successfully.")
+        print(f"--- SIMULATION COMPLETE ---")
+
 
 if __name__ == "__main__":
-    # Define root directory using pathlib for cross-platform compatibility
-    ROOT_DIR = Path(__file__).resolve().parent.parent
+    print(f"main.py: process_data function source: {_process_data_source}")
 
-    # Parse command-line arguments (for app.py)
+    # Use argparse to parse command-line arguments passed from app.py
     parser = argparse.ArgumentParser(description="Run seismic signal analysis script.")
-    parser.add_argument('--earthquake_name', type=str, default=None, help='Name of the earthquake event.')
-    parser.add_argument('--latitude', type=float, default=None, help='Latitude of the earthquake epicenter.')
-    parser.add_argument('--longitude', type=float, default=None, help='Longitude of the earthquake epicenter.')
-    parser.add_argument('--magnitude', type=float, default=None, help='Magnitude of the earthquake.')
-    parser.add_argument('--event_index', type=int, default=None, help='Index of the event to process from config.json.')
+    parser.add_argument('--earthquake_name', type=str, default='Lamjung_Earthquake',
+                        help='Name of the earthquake event.')
+    parser.add_argument('--latitude', type=float, default=None,
+                        help='Latitude of the earthquake epicenter.')
+    parser.add_argument('--longitude', type=float, default=None,
+                        help='Longitude of the earthquake epicenter.')
+    parser.add_argument('--magnitude', type=float, default=5.3, # Added argument for magnitude
+                        help='Magnitude of the earthquake.')
+    
     args = parser.parse_args()
 
-    # List to store configurations
-    configs = []
+    # Define root directory for easier path construction
+    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    
+    # Construct the dynamic subfolder name using earthquake name and magnitude
+    # This must match the folder created by app.py for uploads
+    dynamic_folder_name = f"{args.earthquake_name}_{args.magnitude}"
 
-    # If command-line arguments are provided, use them
-    if any([args.earthquake_name, args.latitude, args.longitude, args.magnitude]):
-        if not all([args.earthquake_name, args.latitude, args.longitude, args.magnitude]):
-            sys.exit("Error: All parameters (earthquake_name, latitude, longitude, magnitude) must be provided.")
-        dynamic_folder_name = f"{args.earthquake_name}_{args.magnitude}"
-        configs.append({
-            'earthquake_name': args.earthquake_name,
-            'input_folder': ROOT_DIR / 'assets' / dynamic_folder_name,
-            'output_folder': ROOT_DIR / 'Output' / dynamic_folder_name,
-            'latitude': args.latitude,
-            'longitude': args.longitude,
-            'magnitude': args.magnitude
-        })
-    else:
-        # No command-line arguments, read config.json
-        config_path = ROOT_DIR / 'config.json'
-        if not config_path.exists():
-            sys.exit(f"Error: config.json not found at {config_path}")
-        try:
-            with open(config_path, 'r') as f:
-                config_data = json.load(f)
-            # Ensure config_data is a list
-            if isinstance(config_data, list):
-                configs = config_data
-            else:
-                configs = [config_data]
-            # Validate and convert paths
-            required_fields = ['earthquake_name', 'input_folder', 'output_folder', 'latitude', 'longitude', 'magnitude']
-            for config in configs:
-                if not all(field in config for field in required_fields):
-                    sys.exit(f"Error: Config missing required fields: {required_fields}")
-                config['input_folder'] = ROOT_DIR / config['input_folder']
-                config['output_folder'] = ROOT_DIR / config['output_folder']
-        except json.JSONDecodeError as e:
-            sys.exit(f"Error: Invalid JSON in config.json: {e}")
-        except Exception as e:
-            sys.exit(f"Error reading config.json: {e}")
+    # Input folder where MiniSEED files are uploaded by Flask app
+    # This now points to the dynamic subfolder within 'assets'
+    folder_path = os.path.join(ROOT_DIR, 'assets', dynamic_folder_name)
+    print(f"main.py: Using input folder path: {folder_path}")
 
-        # Select specific event if --event_index is provided
-        if args.event_index is not None:
-            if not 0 <= args.event_index < len(configs):
-                sys.exit(f"Error: event_index {args.event_index} out of range (0-{len(configs)-1})")
-            configs = [configs[args.event_index]]
+    if not os.path.exists(folder_path):
+        sys.exit(f"Error: Input folder '{folder_path}' does not exist. Ensure files are uploaded correctly.")
+    
+    # Output directory for processed files
+    # This now points to a dynamic subfolder within 'Output'
+    output_dir = os.path.join(ROOT_DIR, 'Output', dynamic_folder_name)
+    os.makedirs(output_dir, exist_ok=True) # Ensure output directory exists
 
-    # Process each configuration
-    for config in configs:
-        earthquake_name = config['earthquake_name']
-        folder_path = Path(config['input_folder'])
-        output_dir = Path(config['output_folder'])
-        latitude = config['latitude']
-        longitude = config['longitude']
-        magnitude = config['magnitude']
+    # Define output file paths based on earthquake name and dynamic output folder
+    output_pdf_path = os.path.join(output_dir, f"{args.earthquake_name}_velocity_um_per_s.pdf")
+    map_pdf_path = os.path.join(output_dir, f"{args.earthquake_name}_stations_map.pdf")
+    output_csv_path = os.path.join(output_dir, "nepal_stations.csv") # Example CSV output
 
-        print(f"\nProcessing event: {earthquake_name} (Magnitude: {magnitude})")
+    print(f"main.py: Output PDF (Velocity) will be saved to: {output_pdf_path}")
+    print(f"main.py: Output PDF (Map) will be saved to: {map_pdf_path}")
+    print(f"main.py: Output CSV will be saved to: {output_csv_path}")
 
-        # Validate input folder
-        if not folder_path.is_dir():
-            print(f"Error: Input folder '{folder_path}' does not exist. Skipping.")
-            continue
+    # Call the main data processing function
+    process_data(
+        folder_path=folder_path,
+        output_csv=output_csv_path,
+        output_pdf=output_pdf_path,
+        map_pdf=map_pdf_path,
+        epi_lat=args.latitude,
+        epi_lon=args.longitude,
+        epi_mag=args.magnitude # Pass magnitude to process_data
+    )
 
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Define output file paths
-        output_pdf_path = output_dir / f"{earthquake_name}_velocity_um_per_s.pdf"
-        map_pdf_path = output_dir / f"{earthquake_name}_stations_map.pdf"
-        output_csv_path = output_dir / "nepal_stations.csv"
-
-        print(f"Input folder: {folder_path}")
-        print(f"Output PDF (Velocity): {output_pdf_path}")
-        print(f"Output PDF (Map): {map_pdf_path}")
-        print(f"Output CSV: {output_csv_path}")
-
-        # Process the data
-        try:
-            process_data(
-                folder_path=str(folder_path),
-                output_csv=str(output_csv_path),
-                output_pdf=str(output_pdf_path),
-                map_pdf=str(map_pdf_path),
-                epi_lat=latitude,
-                epi_lon=longitude,
-                epi_mag=magnitude
-            )
-            print(f"Completed processing for {earthquake_name}")
-        except Exception as e:
-            print(f"Error processing {earthquake_name}: {e}")
-
-    print("\nScript finished successfully.")
+    print("main.py: Script finished successfully.")
